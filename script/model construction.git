@@ -1,0 +1,310 @@
+;By Deus
+
+METHOD RK4
+
+STARTTIME = 0
+STOPTIME=14610
+DT = 0.01
+DTOUT = 100
+
+;==========MOSQUITO EQUATIONS AND INITIAL VALUES==========
+
+d/dt (Sm) = bm*Nm - (Hm0+Hm1+Hm2+Hm3)*Sm - mu*Sm 
+
+d/dt (Em0) = Hm0*Sm - Incb0 - mu*Em0
+d/dt (Im0) = Incb0 - 0.5*newR12 + 0.5*newR03 - mu*Im0
+
+d/dt (Em1) = Hm1*Sm - Incb1 - mu*Em1 + d1 + d123
+d/dt (Im1) = Incb1+ 0.5*newR12 - 0.5*newR03 - mu*Im1 + d1 + d123
+
+d/dt (Em2) = Hm2*Sm - Incb2 - mu*Em2 + d2 + d123
+d/dt (Im2) = Incb2 + 0.5*newR12 - 0.5*newR03 - mu*Im2 + d2 + d123
+
+d/dt (Em3) = Hm3*Sm - Incb3 - mu*Em3 + d3 + d123
+d/dt (Im3) = Incb3 - 0.5*newR12 + 0.5*newR03 - mu*Im3 + d3 + d123
+
+Nm = Sm+Em0+Im0+Em1+Im1+Em2+Im2+Em3+Im3
+INIT Sm = 1-(Em0+Im0+Em1+Im1+Em2+Im2+Em3+Im3)
+INIT Em0 = 0.01
+INIT Im0 = 0
+INIT Em1 = 0
+INIT Im1 = 0
+INIT Em2 = 0
+INIT Im2 = 0
+INIT Em3 = 0
+INIT Im3 = 0
+
+;==========MOSQUITO FUNCTIONS AND PARAMETERS==========
+
+{detection immunity in nonpreg}
+det_g = IF m=4 then 0.61421436 else det_gh
+det_gh = 0.56904048
+
+{infectivity to mosquito from asymptomatic nonpreg}
+cA = det_g^(det_const)
+
+{detection immunity in preg}
+det_p = IF m=4 then 0.34758580 else det_ph
+det_ph = 0.29275440
+
+{infectivity to mosquito from asymptomatic preg}
+cAp = det_p^(det_const)
+
+{biting preference in nonpreg}
+alpha1 = alpha/(1+(pref_ratio -1)*sigma) 
+
+{biting preference in preg}
+alpha2 = pref_ratio*alpha1 
+
+{proportion of mosquito bites in non-preg}
+bronner1 = alpha1*(A0 + T0 + A1 + T1 + A2 + T2 + A3 + T3)/(alpha1*(A0 + T0 + A1 + T1 + A2 + T2 + A3 + T3) + alpha2*(pA0 + pT0 + pA1 + pT1 + pA2 + pT2 + pA3 + pT3 + IPT0 + IPT1 + IPT2 + IPT3)) 
+
+{proportion of mosquito bites in preg}
+bronner2 = 1-bronner1
+
+phi1 = IF m=4 then 0.05605982 else phi1h
+
+{forces of infection in nonpreg and preg}
+H0 = bronner1*(cA*A0 + cT*T0) + bronner2*(cAp*pA0 + cTp*pT0) + bronner2*cIpt*IPT0
+H1 = bronner1*(cA*A1 + cT*T1) + bronner2*(cAp*pA1 + cTp*pT1) + bronner2*cIpt*IPT1
+H2 = bronner1*(cA*A2 + cT*T2) + bronner2*(cAp*pA2 + cTp*pT2) + bronner2*cIpt* IPT2
+H3 = bronner1*(cA*A3 + cT*T3) + bronner2*(cAp*pA3 + cTp*pT3) + bronner2*cIpt* IPT3
+
+{forces of infection in preg}
+H0x = 260000*bronner2*(cAp*pA0 + cTp*pT0 + cIpt*IPT0)
+H1x = 230000*bronner2*(cAp*pA1 + cTp*pT1 + cIpt*IPT1)
+H2x = 8000*bronner2*(cAp*pA2 + cTp*pT2 + cIpt* IPT2)
+H3x = 1200*bronner2*(cAp*pA3 + cTp*pT3 + cIpt* IPT3)
+
+{strain-specific force of infection accounting for gametocytosis}
+Hm0 = delay(H0, gam_dev)
+Hm1 = delay(H1, gam_dev)
+Hm2 = delay(H2, gam_dev)
+Hm3 = delay(H3, gam_dev)
+
+;accounting for incubation period within mosquito
+Incb0 = delay(Hm0*Sm*Pm, tau) 
+Incb1 = delay(Hm1*Sm*Pm, tau) 
+Incb2 = delay(Hm2*Sm*Pm, tau) 
+Incb3 = delay(Hm3*Sm*Pm, tau) 
+
+;same mosquito survival probability during incubation regardless of infecting strain
+Pm = exp(-mu*tau)
+
+;mosquito parameters
+cT = 0.05094 {infectivity to mosquito from treated compartments in non-preg popn given drug AL}
+cTp = 0.05094 {infectivity to mosquito from treated compartments in non-IPTp popn given drug AL}
+cIpt = 0.09434 {infectivity to mosquito from treated compartments in IPT given DHA-PQP}
+det_const = 1.82425 {defines history of immunity}
+pref_ratio = 2.4
+gam_dev = 12.5
+b = 1
+tau = 10
+mu = 1/tau
+bm = mu
+b_rate = 45/(1000*365.25)
+m_rate = 45/(1000*365.25)
+
+
+;==========HUMAN EQUATIONS AND INITIAL VALUES==========
+
+d/dt (X) = b_rate*Nchk + psi0*A0 + (psi0+(1-lambda10)*delta1)*T0 + psi1*A1 + (psi1+(1-lambda11)*delta1)*T1 + psi2*A2 + (psi2+(1-lambda12)*delta1)*T2 + psi3*A3 + (psi3+(1-lambda13)*delta1)*T3 + theta*pX  + theta*IPTx - E0*phi1*gamma*X - E0*(1-phi1*gamma)*X - E1*phi1*gamma*X - E1*(1-phi1*gamma)*X - E2*phi1*gamma*X - E2*(1-phi1*gamma)*X - E3*phi1*gamma*X - E3*(1-phi1*gamma)*X - sigma*X  - m_rate*X
+
+d/dt (pX) = psi0*pA0 + (psi0+(1-lambda10)*delta1)*pT0 + psi1*pA1 + (psi1+(1-lambda11)*delta1)*pT1 + psi2*pA2 + (psi2+(1-lambda12)*delta1)*pT2 + psi3*pA3 + (psi3+(1-lambda13)*delta1)*pT3 + sigma*X - E0*phi2*gamma*pX - E0*(1-phi2*gamma)*pX - E1*phi2*gamma*pX - E1*(1-phi2*gamma)*pX - E2*phi2*gamma*pX - E2*(1-phi2*gamma)*pX - E3*phi2*gamma*pX - E3*(1-phi2*gamma)*pX - theta*pX  - beta*pX - m_rate*pX
+
+
+d/dt (A0) = E0*(1-phi1*gamma)*X + theta*pA0 + theta*IPT0 - (varphi+phi1*E_all)*gamma*A0 - sigma*A0 - psi0*A0 - m_rate*A0 
+
+d/dt (A1) = E1*(1-phi1*gamma)*X + theta*pA1 + theta*IPT1 - (varphi+phi1*E_all)*gamma*A1 - sigma*A1 - psi1*A1  - m_rate*A1 + d1 + d123
+
+d/dt (A2) = E2*(1-phi1*gamma)*X + theta*pA2 + theta*IPT2 - (varphi+phi1*E_all)*gamma*A2 - sigma*A2 - psi2*A2   - m_rate*A2 + d2 + d123
+
+d/dt (A3) = E3*(1-phi1*gamma)*X + theta*pA3 + theta*IPT3 - (varphi+phi1*E_all)*gamma*A3 - sigma*A3 - psi3*A3   - m_rate*A3 + d3 + d123
+
+
+d/dt (T0) = E0*phi1*gamma*X + (varphi+phi1*E_all)*gamma*A0 + theta*pT0 - (psi0+(1-lambda10)*delta1)*T0 - sigma*T0 - m_rate*T0 
+
+d/dt (T1) = E1*phi1*gamma*X + (varphi+phi1*E_all)*gamma*A1 + theta*pT1 - (psi1+(1-lambda11)*delta1)*T1  - sigma*T1 - m_rate*T1 + d1 + d123
+
+d/dt (T2) = E2*phi1*gamma*X + (varphi+phi1*E_all)*gamma*A2 + theta*pT2 - (psi2+(1-lambda12)*delta1)*T2  - sigma*T2 - m_rate*T2 + d2 + d123
+
+d/dt (T3) = E3*phi1*gamma*X + (varphi+phi1*E_all)*gamma*A3 + theta*pT3 - (psi3+(1-lambda13)*delta1)*T3  - sigma*T3 - m_rate*T3 + d3 + d123
+
+d/dt (pA0) = E0*(1-phi2*gamma)*pX + sigma*A0 - (varphi+phi2*E_all)*gamma*pA0 - theta*pA0 - psi0*pA0 - beta*pA0 - m_rate*pA0 
+
+d/dt (pA1) = E1*(1-phi2*gamma)*pX + sigma*A1 - (varphi+phi2*E_all)*gamma*pA1 - theta*pA1 - psi1*pA1 - beta*pA1 - m_rate*pA1 + d1 + d123
+
+d/dt (pA2) = E2*(1-phi2*gamma)*pX + sigma*A2 - (varphi+phi2*E_all)*gamma*pA2 - theta*pA2 - psi2*pA2 - beta*pA2 - m_rate*pA2 + d2 + d123
+
+d/dt (pA3) = E3*(1-phi2*gamma)*pX + sigma*A3 - (varphi+phi2*E_all)*gamma*pA3 - theta*pA3 - psi3*pA3 - beta*pA3 - m_rate*pA3 + d3 + d123
+
+d/dt (pT0) = E0*phi2*gamma*pX + (varphi+phi2*E_all)*gamma*pA0 + sigma*T0 - theta*pT0 - (psi0+(1-lambda10)*delta1)*pT0 - m_rate*pT0 
+
+d/dt (pT1) = E1*phi2*gamma*pX + (varphi+phi2*E_all)*gamma*pA1 + sigma*T1 - theta*pT1 - (psi1+(1-lambda11)*delta1)*pT1 - m_rate*pT1 + d1 + d123
+
+d/dt (pT2) = E2*phi2*gamma*pX + (varphi+phi2*E_all)*gamma*pA2 + sigma*T2 - theta*pT2 - (psi2+(1-lambda12)*delta1)*pT2 - m_rate*pT2 + d2 + d123
+
+d/dt (pT3) = E3*phi2*gamma*pX + (varphi+phi2*E_all)*gamma*pA3 + sigma*T3 - theta*pT3 - (psi3+(1-lambda13)*delta1)*pT3 - m_rate*pT3 + d3 + d123
+
+d/dt (IPT0) = beta*pA0 + delta3*lambda20*E0*IPTx - theta*IPT0 - (psi0+(1-lambda20)*delta2)*IPT0 - m_rate*IPT0 
+
+d/dt (IPT1) = beta*pA1 + delta3*lambda21*E1*IPTx - theta*IPT1 - (psi1+(1-lambda21)*delta2)*IPT1 - m_rate*IPT1 + d1 + d123
+
+d/dt (IPT2) = beta*pA2 + delta3*lambda22*E2*IPTx - theta*IPT2 - (psi2+(1-lambda22)*delta2)*IPT2 - m_rate*IPT2 + d2 + d123
+
+d/dt (IPT3) = beta*pA3 + delta3*lambda23*E3*IPTx - theta*IPT3 - (psi3+(1-lambda23)*delta2)*IPT3 - m_rate*IPT3 + d3 + d123
+
+d/dt (IPTx) = beta*pX + (psi0+(1-lambda20)*delta2)*IPT0 + (psi1+(1-lambda21)*delta2)*IPT1 + (psi2+(1-lambda22)*delta2)*IPT2 + (psi3+(1-lambda23)*delta2)*IPT3 - delta3*lambda20*E0*IPTx - delta3*lambda21*E1*IPTx - delta3*lambda22*E2*IPTx - delta3*lambda23*E3*IPTx - theta*IPTx - m_rate*IPTx
+
+
+INIT X = 1 - pX - A0 - pA0 - T0 - pT0 - A1 - pA1 - T1 - pT1 - A2 - pA2 - T2 - pT2 - A3 - pA3 - T3 - pT3 - IPT0 - IPT1 - IPT2 - IPT3 - IPTx 
+INIT pX = 0
+INIT A0 = 0.0001
+INIT pA0= 0
+INIT T0 = 0
+INIT pT0 = 0
+INIT A1 = 0
+INIT pA1 = 0
+INIT T1 = 0
+INIT pT1 = 0
+INIT A2 = 0
+INIT pA2 = 0
+INIT T2 = 0
+INIT pT2 = 0
+INIT A3 = 0
+INIT pA3 = 0
+INIT T3 = 0
+INIT pT3 = 0
+INIT IPT0 = 0
+INIT IPT1 = 0
+INIT IPT2 = 0
+INIT IPT3 = 0
+INIT IPTx = 0
+
+;=========Human Functions and Parameters==========
+
+;proportion of individuals in all compartments combined
+Nchk = X + pX + A0 + pA0 + T0 + pT0 + A1 + pA1 + T1 + pT1 + A2 + pA2 + T2 + pT2 + A3 + pA3 + T3 + pT3 + IPT0  + IPT1 + IPT2 + IPT3 + IPTx
+
+;proportion of pregnant women in all pregnancy compartments
+Pchk = pX + pA0 + pT0 + pA1 + pT1 + pA2 + pT2 + pA3 + pT3  + IPT0 + IPT1 + IPT2 + IPT3 + IPTx 
+
+;prevalence of all infections
+Prev = A0 + pA0 + T0 + pT0 + A1 + pA1 + T1 + pT1 + A2 + pA2 + T2 + pT2 + A3 + pA3 + T3 + pT3 + IPT0 + IPT1 + IPT2 + IPT3
+
+;total strain specific infections
+R0n = A0 + pA0 + T0 + pT0 + IPT0
+R1n = A1 + pA1 + T1 + pT1 + IPT1
+R2n = A2 + pA2 + T2 + pT2 + IPT2
+R3n = A3 + pA3 + T3 + pT3 + IPT3
+ 
+;proportion of wild-types.
+R0 = 1 - R1 - R2 - R3
+
+;proportion of parasites resistant to artemisinin derivatives.
+R1 = (A1 + pA1 + T1 + pT1 + IPT1)/Prev 
+
+;proportion of parasites resistant to piperaquine.
+R2 = (A2 + pA2 + T2 + pT2 + IPT2)/Prev 
+
+;proportion of parasites resistant to artemisinin derivatives + piperaquine.
+R3 = (A3 + pA3 + T3 + pT3 + IPT3)/Prev 
+
+;strain-specific force of infection from mosquito to human host.
+E0 = Im0*m*alpha*b 
+E1 = Im1*m*alpha*b 
+E2 = Im2*m*alpha*b 
+E3 = Im3*m*alpha*b 
+E_all = E0+E1+E2+E3
+
+;probability of seeking treatment.
+gamma = IF TIME < (2*365.25) THEN 0 ELSE gammaf
+gammaf =0.8
+
+;pregnancy rate per person per day.
+sigma = IF TIME < (4*365.25) THEN 0 ELSE sigmaf
+sigmaf =45/(1000*365.25)
+
+;inverse duration of IPTp
+theta = 1/(6*30.44)
+
+;IPTp coverage
+beta = 0.90
+
+;assuming a single resistant strain + wild-type in circulation at a time
+d1 = IF TIME > (10*365.25) AND TIME <((10*365.25)+dt) THEN res1 ELSE 0
+d2 = IF TIME > (10*365.25) AND TIME <((10*365.25)+dt) THEN res2 ELSE 0
+d3 = IF TIME > (10*365.25) AND TIME <((10*365.25)+dt) THEN res3 ELSE 0
+
+;assuming all resistant strains + wild-type in circulation at any time
+d123 = IF TIME > (10*365.25) AND TIME <((10*365.25)+dt) THEN res123 ELSE 0
+
+res1 = IF (scenario =1) THEN pulse1 ELSE IF (scenario =2) THEN 0 ELSE IF (scenario=3) THEN 0 ELSE IF (scenario =4) THEN 0 ELSE 0
+res2 = IF (scenario =1) THEN 0 ELSE IF (scenario =2) THEN pulse2 ELSE IF (scenario=3) THEN 0 ELSE IF (scenario =4) THEN 0 ELSE 0
+res3 = IF (scenario =1) THEN 0 ELSE IF (scenario =2) THEN 0 ELSE IF (scenario=3) THEN pulse3 ELSE IF (scenario =4) THEN 0 ELSE 0
+res123=IF (scenario =1) THEN 0 ELSE IF (scenario =2) THEN 0 ELSE IF (scenario=3) THEN 0 ELSE IF (scenario =4) THEN pulse123 ELSE 0
+
+pulse1 = IF (m=4 AND gammaf <> 0 AND beta <> 0) THEN 0.340 ELSE IF (m =30 AND gammaf <> 0 AND beta <> 0) THEN 0.600 ELSE IF (m=4 AND gammaf = 0) THEN 0.740 ELSE IF (m=30 AND gammaf = 0) THEN 0.675 ELSE IF (m=4 AND beta = 0) THEN 0.255 ELSE pulse1x
+pulse1x = 0.563
+
+pulse2 = IF (m=4 AND gammaf <> 0 AND beta <> 0) THEN 0.345 ELSE IF (m =30 AND gammaf <> 0 AND beta <> 0) THEN 0.560 ELSE IF (m=4 AND gammaf = 0) THEN 0.740 ELSE IF (m=30 AND gammaf = 0) THEN 0.662 ELSE IF (m=4 AND beta = 0) THEN 0.265 ELSE pulse2x
+pulse2x = 0.589
+
+pulse3 = IF (m=4 AND gammaf <> 0 AND beta <> 0) THEN 0.330 ELSE IF (m =30 AND gammaf <> 0 AND beta <> 0) THEN 0.320 ELSE IF (m=4 AND gammaf = 0) THEN 0.240 ELSE IF (m=30 AND gammaf = 0) THEN 0.645 ELSE IF (m=4 AND beta = 0) THEN 0.255 ELSE pulse3x
+pulse3x = 0.563
+
+pulse123 = IF (m =30 AND gammaf <> 0 AND beta <> 0) THEN 0.640 ELSE IF (m=30 AND beta = 0) THEN 0.690 ELSE pulse123x
+pulse123x = 0.563
+
+;probability to symptoms in non pregnancy
+phi1 = IF m=4 then 0.05605982 else phi1h
+phi1h = 0.00252162
+
+;probability to symptoms in pregnancy
+phi2 = IF m=4 then 0.00224424 else phi2h
+phi2h = 0.00065552
+
+;probability to symptoms due to comorbidity
+varphi = 0.15
+
+;rate to clear infections naturally
+psi0 = 1/160 
+psi1 = 1/160
+psi2 = 1/160
+psi3 = 1/160
+
+;scenario 1, resistant to A/DHA; scenario 2, resistant to PQP; scenario 3, resistant to A/DHA+PQP
+;AL in nonIPTp
+lambda10=IF (scenario=1) THEN 0 ELSE IF (scenario=2) THEN 0 ELSE IF (scenario =3) THEN 0 ELSE IF (scenario =4) THEN 0 ELSE 0
+lambda11=IF (scenario=1) THEN Tf1 ELSE IF (scenario=2) THEN 0 ELSE IF (scenario =3) THEN 0 ELSE IF (scenario =4) THEN Tf1 ELSE 0
+lambda12=IF (scenario=1) THEN 0 ELSE IF (scenario=2) THEN 0 ELSE IF (scenario =3) THEN 0 ELSE IF (scenario=4) THEN 0 ELSE 0
+lambda13=IF (scenario=1) THEN 0 ELSE IF (scenario=2) THEN 0 ELSE IF (scenario=3) THEN Tf1 ELSE IF (scenario=4) THEN Tf1 ELSE 0
+
+;DHA-PQP in IPTp
+lambda20=IF (scenario=1) THEN 0 ELSE IF (scenario=2) THEN 0 ELSE IF (scenario =3) THEN 0 ELSE IF (scenario =4) THEN 0 ELSE 0
+lambda21=IF (scenario=1) THEN Tf1 ELSE IF (scenario=2) THEN 0 ELSE IF (scenario =3) THEN 0 ELSE IF (scenario =4) THEN Tf1 ELSE 0
+lambda22=IF (scenario=1) THEN 0 ELSE IF (scenario=2) THEN Tf2 ELSE IF (scenario =3) THEN 0 ELSE IF (scenario=4) THEN Tf2 ELSE 0
+lambda23=IF (scenario=1) THEN 0 ELSE IF (scenario=2) THEN 0 ELSE IF (scenario=3) THEN Tf3 ELSE IF (scenario=4) THEN Tf3 ELSE 0
+
+Tf1 = 0.034
+Tf2 = 0.214
+Tf3 = 0.464
+
+delta1 = 1/5
+delta2 = 1/5
+delta3 = 1
+
+m =4
+alpha = 0.05
+
+scenario = 1
+
+;=========RECOMBINATION==========
+
+moi=3
+prob_moi = 0.801
+rec_error = 0.15
+
+newR03 = IF (scenario=4) THEN R1*R2*prob_moi*rec_error*((Hm0+Hm3)/Hm0+Hm1+Hm2+Hm3) ELSE 1
+
+newR12 = IF (scenario=4) THEN R0*R3*prob_moi*rec_error*((Hm1+Hm2)/Hm0+Hm1+Hm2+Hm3) ELSE 1
